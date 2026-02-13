@@ -5,6 +5,7 @@ env/
 bin/
 lib/
 include/
+.env
 
 # Banco de Dados (Subiremos o script de criação, não os dados populados)
 *.db
