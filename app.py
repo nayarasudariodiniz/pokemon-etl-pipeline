@@ -38,17 +38,17 @@ local_css()
 # 3. CARREGAMENTO DE RECURSOS (Modelo, Scaler e Banco)
 @st.cache_resource
 def load_assets():
-    modelo = joblib.load('models/pokemon_model.pkl')
-    scaler = joblib.load('models/scaler.pkl')
-    # check_same_thread=False é necessário para o Streamlit
-    conn = sqlite3.connect('data/database/pokemon_data.db', check_same_thread=False)
-    return modelo, scaler, conn
+    # Caminhos relativos à raiz do projeto
+    base_path = os.path.dirname(__file__)
+    db_path = os.path.join(base_path, 'data', 'database', 'pokemon_data.db')
+    model_path = os.path.join(base_path, 'models', 'pokemon_model.pkl')
+    scaler_path = os.path.join(base_path, 'models', 'scaler.pkl')
 
-try:
-    modelo, scaler, conn = load_assets()
-except Exception as e:
-    st.error(f"Erro ao carregar modelos ou banco: {e}")
-    st.stop()
+    modelo = joblib.load(model_path)
+    scaler = joblib.load(scaler_path)
+    # A mágica está aqui: usar o caminho absoluto dinâmico
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    return modelo, scaler, conn
 
 # 4. FUNÇÕES DE SUPORTE
 def get_pokemon_list():
