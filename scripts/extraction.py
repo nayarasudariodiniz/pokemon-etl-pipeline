@@ -86,35 +86,66 @@ def salvar_dados(dados, nome_arquivo):
     else:
         print(f"❌ Erro: Não foi possível capturar dados para {nome_arquivo}.")
 
+# --- ACRESCENTADO: Função para extrair detalhes de cada habilidade ---
+# Razão: Para o ML, o nome da habilidade não basta; precisamos saber o que ela faz (efeito).
+def extrair_detalhes_habilidade(url_habilidade):
+    """Entra na URL da habilidade e extrai a descrição do efeito."""
+    dados = realizar_requisicao(url_habilidade)
+    if not dados:
+        return None
+    
+    # Buscamos o efeito em inglês (curto) para facilitar o tratamento de dados depois
+    efeito = ""
+    for entry in dados.get("effect_entries", []):
+        if entry.get("language", {}).get("name") == "en":
+            efeito = entry.get("short_effect")
+            break
+            
+    return {
+        "id": dados.get("id"),
+        "name": dados.get("name"),
+        "effect": efeito
+    }
+
+# --- ACRESCENTADO: Função para extrair detalhes de cada tipo ---
+# Razão: Para o ML, precisamos da matriz de vantagens e fraquezas (Damage Relations).
+def extrair_detalhes_tipo(url_tipo):
+    """Entra na URL do tipo e extrai as relações de dano (fraquezas/vantagens)."""
+    dados = realizar_requisicao(url_tipo)
+    if not dados:
+        return None
+    
+    relacoes = dados.get("damage_relations", {})
+    
+    # Estruturamos os dados para facilitar o achatamento depois
+    detalhes = {
+        "id": dados.get("id"),
+        "name": dados.get("name"),
+        "double_damage_from": [d["name"] for d in relacoes.get("double_damage_from", [])],
+        "double_damage_to": [d["name"] for d in relacoes.get("double_damage_to", [])],
+        "half_damage_from": [d["name"] for d in relacoes.get("half_damage_from", [])],
+        "half_damage_to": [d["name"] for d in relacoes.get("half_damage_to", [])],
+        "no_damage_from": [d["name"] for d in relacoes.get("no_damage_from", [])],
+        "no_damage_to": [d["name"] for d in relacoes.get("no_damage_to", [])]
+    }
+    return detalhes
+
 
 if __name__ == "__main__":
-    # 1. Extraindo a lista de todos os Pokémons
-    print("Iniciando extração de Pokémons...")
-    lista_pokemons = extrair_todas_as_paginas("pokemon")
-    salvar_dados(lista_pokemons, "pokemons_list")
-
-    # --- ALTERADO: Adição da lógica de detalhes para o modelo de ML ---
-    # Razão: Para prever batalhas, precisamos dos atributos numéricos de cada pokemon.
-    print("\nIniciando extração de DETALHES dos Pokémons...")
-    detalhes_totais = []
-    for p in lista_pokemons:
-        print(f"📦 Coletando detalhes: {p['name']}", end='\r')
-        info = extrair_detalhes_pokemon(p['url'])
-        if info:
-            detalhes_totais.append(info)
-        time.sleep(0.1) # Respeito à API para não ser bloqueada
-    
-    salvar_dados(detalhes_totais, "pokemons_detalhes")
-
-    # 2. Extraindo a lista de todos os Tipos (Fire, Water, etc)
+# 2. Extraindo a lista de todos os Tipos (Fire, Water, etc)
     print("\nIniciando extração de Tipos...")
     lista_tipos = extrair_todas_as_paginas("type")
     salvar_dados(lista_tipos, "tipos_list")
 
-    # 3. Extraindo a lista de todas as Habilidades
-    print("\nIniciando extração de Habilidades...")
-    lista_habilidades = extrair_todas_as_paginas("ability")
-    salvar_dados(lista_habilidades, "habilidades_list")
-
-    print(f"\nSucesso! Capturamos {len(lista_pokemons)} Pokémons (com detalhes), "
-          f"{len(lista_tipos)} Tipos e {len(lista_habilidades)} Habilidades.")
+    # --- ACRESCENTADO: Lógica de detalhes dos tipos ---
+    # Razão: Essencial para calcular bônus de dano no modelo de previsão de batalhas.
+    print("\nIniciando extração de DETALHES dos Tipos...")
+    tipos_detalhados = []
+    for t in lista_tipos:
+        print(f"📦 Coletando detalhes do tipo: {t['name']}", end='\r')
+        info = extrair_detalhes_tipo(t['url'])
+        if info:
+            tipos_detalhados.append(info)
+        time.sleep(0.1)
+    
+    salvar_dados(tipos_detalhados, "tipos_detalhes")

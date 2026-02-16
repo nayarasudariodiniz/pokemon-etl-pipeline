@@ -15,8 +15,8 @@ include/
 # Dados Brutos e Datalake (Dados da API ficam no seu computador/datalake)
 data/raw/
 data/database/
-*.json
 *.csv
+*.json
 
 # Cache do Python
 __pycache__/
