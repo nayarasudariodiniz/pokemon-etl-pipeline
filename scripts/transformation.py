@@ -1,54 +1,106 @@
 import pandas as pd
 import json
 import os
+import sqlite3
 
-# Caminhos de pastas
-RAW_PATH = 'data/raw/pokemons_detalhes.json'
-PROCESSED_PATH = 'data/processed/'
+# Caminhos de arquivos
+RAW_DIR = 'data/raw/'
+DB_PATH = 'data/database/pokemon_data.db'
 
-def carregar_dados_brutos(caminho):
+def carregar_json(nome_arquivo):
+    caminho = os.path.join(RAW_DIR, nome_arquivo)
     with open(caminho, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def achatar_pokemon(lista_pokemons):
-    """Transforma JSON aninhado em uma lista de dicionários planos para o DataFrame."""
-    dados_planos = []
+def transformar_pokemons():
+    """Achata dados de stats e tipos, tratando valores nulos para o modelo de ML."""
+    dados = carregar_json('pokemons_detalhes.json')
+    lista_plana = []
     
-    for p in lista_pokemons:
-        # Iniciamos com os dados básicos
-        pokemon_flat = {
+    for p in dados:
+        # Extração básica e estatísticas
+        registro = {
             "id": p.get("id"),
             "name": p.get("name"),
             "height": p.get("height"),
             "weight": p.get("weight"),
-            "type_1": p.get("types")[0] if len(p.get("types", [])) > 0 else None,
+            "type_1": p.get("types")[0] if p.get("types") else None,
             "type_2": p.get("types")[1] if len(p.get("types", [])) > 1 else None
         }
-        
-        # 'Achatamos' os stats: transformamos a chave do stat em uma coluna
-        # Ex: de {"hp": 45} para uma coluna chamada 'hp' com valor 45
-        stats = p.get("stats", {})
-        pokemon_flat.update(stats)
-        
-        dados_planos.append(pokemon_flat)
+        # Adiciona os stats (HP, Attack, etc) como colunas diretas
+        registro.update(p.get("stats", {}))
+        lista_plana.append(registro)
     
-    return pd.DataFrame(dados_planos)
+    df = pd.DataFrame(lista_plana)
+
+    # --- TRATAMENTO DE DADOS FALTANTES (ESSENCIAL PARA ML) ---
+    
+    # 1. Tratando o type_2: Se for nulo, significa que o Pokémon tem tipo único.
+    # Preenchemos com 'none' para que o SQLite não exiba NULL e o modelo entenda a ausência.
+    df['type_2'] = df['type_2'].fillna('none')
+
+    # 2. Garantia de Stats: Caso algum stat venha vazio por erro da API.
+    # Definimos a lista de colunas numéricas de combate.
+    cols_stats = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed']
+    
+    # Preenchemos qualquer eventual nulo com 0 ou com a média (usaremos 0 para não inventar poder).
+    for col in cols_stats:
+        if col in df.columns:
+            df[col] = df[col].fillna(0)
+
+    return df
+
+def transformar_habilidades():
+    """Achata os detalhes das habilidades."""
+    dados = carregar_json('habilidades_detalhes.json')
+    # Como já estruturamos o JSON na extração, o Pandas lê quase direto
+    return pd.DataFrame(dados)
+
+def transformar_tipos():
+    """Achata as relações de dano e trata valores ausentes."""
+    dados = carregar_json('tipos_detalhes.json')
+    lista_plana = []
+    
+    for t in dados:
+        # Criamos o registro tratando cada lista de dano
+        # Se a lista estiver vazia, o join retornará uma string vazia '', 
+        # mas podemos garantir um padrão 'none' se preferir.
+        registro = {
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "double_damage_to": ",".join(t.get("double_damage_to", [])) or "none",
+            "double_damage_from": ",".join(t.get("double_damage_from", [])) or "none",
+            "half_damage_to": ",".join(t.get("half_damage_to", [])) or "none",
+            "half_damage_from": ",".join(t.get("half_damage_from", [])) or "none",
+            "no_damage_to": ",".join(t.get("no_damage_to", [])) or "none",
+            "no_damage_from": ",".join(t.get("no_damage_from", [])) or "none"
+        }
+        lista_plana.append(registro)
+        
+    return pd.DataFrame(lista_plana)
+
+def salvar_no_sqlite(dfs_dict):
+    """Recebe um dicionário de {nome_tabela: dataframe} e salva no banco."""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        for tabela, df in dfs_dict.items():
+            df.to_sql(tabela, conn, if_exists='replace', index=False)
+            print(f"✅ Tabela '{tabela}' salva no SQLite ({len(df)} registros).")
 
 if __name__ == "__main__":
-    print("🔄 Iniciando transformação dos dados de Pokémon...")
+    print("🔄 Iniciando Transformação para o Modelo de ML...")
     
-    # 1. Carregar
-    dados_brutos = carregar_dados_brutos(RAW_PATH)
+    # Processando cada entidade
+    df_pkmn = transformar_pokemons()
+    df_hab = transformar_habilidades()
+    df_tipos = transformar_tipos()
     
-    # 2. Transformar (Achatamento)
-    df_pokemons = achatar_pokemon(dados_brutos)
+    # Dicionário para carga em lote
+    tabelas = {
+        "features_pokemons": df_pkmn,
+        "features_habilidades": df_hab,
+        "features_tipos": df_tipos
+    }
     
-    # 3. Visualizar o resultado (ajuda a validar se as colunas de stats apareceram)
-    print("\nPreview do DataFrame achatado:")
-    print(df_pokemons.head())
-    
-    # 4. Salvar (Criando a pasta processed se não existir)
-    os.makedirs(PROCESSED_PATH, exist_ok=True)
-    df_pokemons.to_csv(f"{PROCESSED_PATH}pokemons_features.csv", index=False)
-    
-    print(f"\n✅ Transformação concluída! Arquivo salvo em: {PROCESSED_PATH}pokemons_features.csv")
+    salvar_no_sqlite(tabelas)
+    print("\n ETL de Transformação concluído com sucesso!")
