@@ -1,34 +1,53 @@
 # ETL - Pipeline de Engenharia de Dados
 
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)
-![Status](https://img.shields.io/badge/STATUS-EM%20DESENVOLVIMENTO-green?style=for-the-badge)
+![Status](https://img.shields.io/badge/STATUS-CONCLUÍDO-brightgreen?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-EB4223?style=for-the-badge&logo=xgboost&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)
 
-Este projeto é focado na construção de um pipeline de **Engenharia de Dados** completo, realizando o processo de ETL (Extract, Transform, Load) a partir da **PokéAPI**. O projeto é desenvolvido de forma autoral, adaptando conceitos de integração de dados para um cenário de análise de atributos de Pokémon.
+Este projeto implementa um pipeline completo de **Engenharia de Dados (ETL)** para ingerir dados da **PokéAPI**, transformá-los e alimentar um modelo de Machine Learning (**XGBoost**) capaz de prever o vencedor de batalhas entre Pokémons.
 
-## 📋 Objetivo do Projeto
-O objetivo é automatizar a ingestão de dados de Pokémon, criando um **Data Lake** local para armazenamento de dados brutos e integrando-os em um banco de dados relacional (SQLite) para alimentar um futuro modelo de Machine Learning focado em predição de batalhas.
+## ⚙️ Arquitetura do Pipeline
 
-## 🛠️ Tecnologias Utilizadas
-* **Python**: Automação do pipeline.
-* **Postman**: Exploração e documentação da API.
-* **SQLite**: Armazenamento dos dados processados.
-* **Pandas**: Manipulação e limpeza de dados.
+O projeto foi estruturado em três etapas principais:
 
-## 📁 Estrutura do Datalake
-* **data/raw/**: Armazena os arquivos JSON brutos obtidos da API, garantindo a imutabilidade do dado original.
-* **data/database/**: Contém o banco de dados SQLite com os dados processados e prontos para consulta.
+1.  **Extração (Extract):**
+    * Consumo da PokéAPI utilizando Python (`requests`).
+    * Implementação de lógica de resiliência (retries e backoff exponencial).
+    * Salvamento dos dados brutos (JSON) em um Datalake local (`data/raw`) para garantir a imutabilidade.
+
+2.  **Transformação e Carga (Transform & Load):**
+    * Tratamento e normalização dos dados brutos.
+    * Modelagem e carga em um banco de dados relacional **SQLite**.
+    * **Feature Engineering:** Criação de variáveis decisivas para o modelo, como "Vantagem de Tipo" (baseada na tabela de danos) e diferencial de status (Ataque, Defesa, Velocidade).
+
+3.  **Machine Learning:**
+    * Treinamento de um classificador **XGBoost**.
+    * Integração com dados históricos de batalhas.
+    * Pré-processamento com `StandardScaler` e pipeline de inferência.
+
+## 📂 Estrutura dos Scripts
+
+* `extraction.py`: Orquestra a extração da API e carga inicial no Datalake/Banco.
+* `prepare_ml_data.py`: Realiza a engenharia de atributos (features) e prepara o dataset de treino.
+* `train_model.py`: Treina o modelo, avalia a performance e serializa os artefatos (`.pkl`).
 
 ## 🚀 Como Executar
-1. **Ambiente Virtual**: Crie e ative o ambiente virtual (`venv`) para isolar as dependências.
-2. **Dependências**: Instale as bibliotecas necessárias (como `requests`).
-3. **Criação do Banco**: Antes da carga, execute o script de criação do banco de dados para gerar as tabelas localmente.
-4. **Visualização**: O projeto conta com scripts para visualização de dados em tabelas para validar a integração.
 
-## 🧠 Aprendizados de Percurso
-* A exploração via Postman permitiu mapear as estruturas aninhadas do JSON antes da codificação.
-* A arquitetura de Datalake local permite reprocessar dados sem gerar novas chamadas desnecessárias à API.
-* A adaptação de um projeto de curso para um tema autoral fortalece a compreensão da lógica de integração de dados.
+Clone o repositório e instale as dependências:
 
----
-*Este README é atualizado conforme o avanço dos módulos do curso e do desenvolvimento do pipeline.*
+```bash
+  pip install -r requirements.txt
+```
+
+Execute o pipeline na ordem:
+# 1. Extração de dados da API e carga no SQLite
+
+    python extraction.py 
+# 2. Processamento e criação de features para ML
+    python prepare_ml_data.py
+    
+# 3. Treinamento do modelo preditivo
+    python train_model.py
+
+
